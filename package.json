@@ -1,0 +1,23 @@
+{
+    "name": "fraxlend-telegram-bot",
+    "version": "1.0.0",
+    "description": "Telegram bot for fetching Fraxlend wallet balance and sending it to a telegram account, Frexlend Positions, Tranasctions and more",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js"
+    },
+    "keywords": [
+        "Telegram",
+        "bot",
+        "Frax",
+        "Frexlend"
+    ],
+    "author": "Sambit Sargam Ekalabya",
+    "license": "MIT",
+    "dependencies": {
+        "axios": "^0.21.1",
+        "node-cron": "^3.0.2",
+        "node-fetch": "^3.3.1",
+        "node-telegram-bot-api": "^0.61.0"
+    }
+}
