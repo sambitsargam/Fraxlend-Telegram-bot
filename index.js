@@ -1,21 +1,21 @@
 const TelegramBot = require("node-telegram-bot-api");
 const axios = require("axios");
 const fetch = require("node-fetch");
-const cron = require('node-cron');
+const cron = require("node-cron");
 
 // Replace 'YOUR_TELEGRAM_BOT_TOKEN' with your actual Telegram bot token
-const botToken = "";
+const botToken = "YOUR_TELEGRAM_BOT_TOKEN";
 // GraphQL endpoint (Fraxlend Subgraph)
 const apiUrl =
   "https://api.thegraph.com/subgraphs/name/frax-finance-data/fraxlend-subgraph---mainnet";
 const bot = new TelegramBot(botToken, {
   polling: true,
-  parse_mode: 'MarkdownV2'
+  parse_mode: "MarkdownV2",
 });
 
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-  
+
   const imageCaption =
     "Welcome to the Fraxlend Checker Bot!\n/help - Show available commands";
 
@@ -37,7 +37,8 @@ bot.onText(/\/help/, (msg) => {
 /help - Show available commands
 /position {wallet address} - Fetch the fraxlend position for a wallet address
 /transaction {wallet address} - Fetch the Last 5 fraxlend transactions for a wallet address
-/scan {wallet address} - Fetch the frax balance for a wallet address`
+/scan {wallet address} - Fetch the frax balance for a wallet address
+/alert - Set up an alert for a wallet address`
   );
 });
 
@@ -71,10 +72,29 @@ bot.onText(/\/scan (.+)/, async (msg, match) => {
     const balanc = respons.data.result;
     const balan = balanc / 1e18;
 
+    const polyresponse = await axios.get(
+      `https://api.polygonscan.com/api?module=account&action=tokenbalance&contractaddress=0x45c32fA6DF82ead1e2EF74d17b76547EDdFaFF89&address=${walletAddress}&tag=latest&apikey=YXY6D6M6QRG8IKPFE8ND8IUNQ2C69YZDMS`
+    );
+    const polybalance = polyresponse.data.result;
+    const polybalanceInfrax = polybalance / 1e18;
+
+    const polyresponses = await axios.get(
+      `https://api.polygonscan.com/api?module=account&action=tokenbalance&contractaddress=0x1a3acf6D19267E2d3e7f898f42803e90C9219062&address=${walletAddress}&tag=latest&apikey=YXY6D6M6QRG8IKPFE8ND8IUNQ2C69YZDMS`
+    );
+    const polybalances = polyresponses.data.result;
+    const polybalanceInfraxs = polybalances / 1e18;
+
+    const polyrespons = await axios.get(
+      `https://api.polygonscan.com/api?module=account&action=tokenbalance&contractaddress=0xEe327F889d5947c1dc1934Bb208a1E792F953E96&address=${walletAddress}&tag=latest&apikey=YXY6D6M6QRG8IKPFE8ND8IUNQ2C69YZDMS`
+    );
+    const polybalanc = polyrespons.data.result;
+    const polybalan = polybalanc / 1e18;
+    
+
     bot
       .sendMessage(
         chatId,
-        `🔍 Wallet Address: ${walletAddress}\n\n💰 Balance: ${balanceInfrax} FRAX\n Frax Share Balance: ${balanceInfraxs} FXS \n Frax Price Index: ${balanceInfr} FPI \n Frax Ether Balance: ${balan} frxETH`
+        `🔍 Wallet Address: ${walletAddress}\n\n💰 Balance (in Ethereum): ${balanceInfrax} FRAX\n Frax Share Balance: ${balanceInfraxs} FXS \n Frax Price Index: ${balanceInfr} FPI \n Frax Ether Balance: ${balan} frxETH \n\n💰 Balance (in Polygon): ${polybalanceInfrax} FRAX\n Frax Share Balance: ${polybalanceInfraxs} FXS  \n Frax Ether Balance: ${polybalan} frxETH`
       )
       .then(() => {
         // Generate the etherscan.io tokenholdings link
@@ -218,9 +238,9 @@ const fetchAndSendPositions = (chatId, walletAddress) => {
   `;
 
   fetch(apiUrl, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       query,
@@ -232,19 +252,19 @@ const fetchAndSendPositions = (chatId, walletAddress) => {
       // Check if response data contains the expected structure
       const users = data.data.users;
       if (!users || users.length === 0) {
-        console.error('Invalid response data structure:', data);
-        bot.sendMessage(chatId, '❌ No Positions found.');
+        console.error("Invalid response data structure:", data);
+        bot.sendMessage(chatId, "❌ No Positions found.");
         return;
       }
       const positions = users[0].positions;
 
       if (positions.length === 0) {
-        bot.sendMessage(chatId, '❌ No Positions found.');
+        bot.sendMessage(chatId, "❌ No Positions found.");
         return;
       }
 
       // Build the message with position details
-      let message = '';
+      let message = "";
       positions.forEach((position, index) => {
         const pair = position.pair;
         const latestDailyHistory = position.dailyHistory[0];
@@ -262,38 +282,52 @@ const fetchAndSendPositions = (chatId, walletAddress) => {
         const borrowPaidInterest = latestDailyHistory.borrowPaidInterest;
         const borrowWithdrawnAsset = latestDailyHistory.borrowWithdrawnAsset;
 
-      
-      // Check if there is no lending position for the pair
-      if (lentAssetValue == 0) {
-        // Add the borrowing position details
-        message += `Pair: ${pairName}\n`;
-        message += `Deposited Collateral Amount: ${depositedCollateralAmount / 1e18} FRAX\n`;
-        message += `Borrowed Asset Value: ${borrowedAssetValue / 1e18} FRAX\n`;
-        message += `Borrow Paid Interest: ${borrowPaidInterest / 1e18} FRAX\n`;
-        message += `Daily History:\n`;
-        message += `Borrowed Asset Share: ${borrowedAssetShare / 1e18} FRAX\n`;
-        message += `Borrowed Asset Value: ${borrowedAssetValue / 1e18} FRAX\n`;
-        message += `Borrow Withdraw Asset: ${borrowWithdrawnAsset / 1e18} FRAX\n\n`;
-      } else {
-        // Add the lending position details
-        message += `Lending Position ${index + 1}:\n\n`;
-        message += `Pair: ${pairName}\n`;
-        message += `Deposited Collateral Amount: ${depositedCollateralAmount / 1e18} FRAX\n`;
-        message += `Lent Asset Value: ${lentAssetValue / 1e18} FRAX\n`;
-        message += `Lend Profit Taken: ${lendProfitTaken / 1e18} FRAX\n`;
-        message += `Daily History:\n`;
-        message += `Lent Asset Share: ${lentAssetShare / 1e18} FRAX\n`;
-        message += `Lent Asset Value: ${lentAssetValue / 1e18} FRAX\n`;
-        message += `Lend Deposited Asset: ${lendDepositedAsset / 1e18} FRAX\n\n`;
-
-      }
-    });
-     // Send the positions to the desired chat ID
-     bot.sendMessage(chatId, message);
+        // Check if there is no lending position for the pair
+        if (lentAssetValue == 0) {
+          // Add the borrowing position details
+          message += `Pair: ${pairName}\n`;
+          message += `Deposited Collateral Amount: ${
+            depositedCollateralAmount / 1e18
+          } FRAX\n`;
+          message += `Borrowed Asset Value: ${
+            borrowedAssetValue / 1e18
+          } FRAX\n`;
+          message += `Borrow Paid Interest: ${
+            borrowPaidInterest / 1e18
+          } FRAX\n`;
+          message += `Daily History:\n`;
+          message += `Borrowed Asset Share: ${
+            borrowedAssetShare / 1e18
+          } FRAX\n`;
+          message += `Borrowed Asset Value: ${
+            borrowedAssetValue / 1e18
+          } FRAX\n`;
+          message += `Borrow Withdraw Asset: ${
+            borrowWithdrawnAsset / 1e18
+          } FRAX\n\n`;
+        } else {
+          // Add the lending position details
+          message += `Lending Position ${index + 1}:\n\n`;
+          message += `Pair: ${pairName}\n`;
+          message += `Deposited Collateral Amount: ${
+            depositedCollateralAmount / 1e18
+          } FRAX\n`;
+          message += `Lent Asset Value: ${lentAssetValue / 1e18} FRAX\n`;
+          message += `Lend Profit Taken: ${lendProfitTaken / 1e18} FRAX\n`;
+          message += `Daily History:\n`;
+          message += `Lent Asset Share: ${lentAssetShare / 1e18} FRAX\n`;
+          message += `Lent Asset Value: ${lentAssetValue / 1e18} FRAX\n`;
+          message += `Lend Deposited Asset: ${
+            lendDepositedAsset / 1e18
+          } FRAX\n\n`;
+        }
+      });
+      // Send the positions to the desired chat ID
+      bot.sendMessage(chatId, message);
     })
     .catch((error) => {
-      console.error('Error:', error);
-      bot.sendMessage(chatId, 'An error occurred while fetching positions.');
+      console.error("Error:", error);
+      bot.sendMessage(chatId, "An error occurred while fetching positions.");
     });
 };
 
@@ -304,18 +338,8 @@ bot.onText(/\/position (.+)/, (msg, match) => {
   // Fetch and send the positions immediately
   fetchAndSendPositions(chatId, walletAddress);
 });
-cron.schedule('* * * * *', () => {
-  // Specify the desired chat ID and wallet address
-  const chatId = msg.chat.id;
-  const walletAddress = match[1].trim();
 
-  // Fetch and send the positions
-  fetchAndSendPositions(chatId, walletAddress);
-});
-
-
-  const fetchTransactionDetails  = async (walletAddress) => {
-
+const fetchTransactionDetails = async (walletAddress) => {
   const query = `
     query fraxlendUsers($user: User_filter) {
       users( where: $user) {
@@ -417,9 +441,9 @@ cron.schedule('* * * * *', () => {
   };
 
   const response = await fetch(apiUrl, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({ query, variables }),
   });
@@ -434,10 +458,12 @@ const formatTransactionDetails = (transactions) => {
     const { pair, type, amount, token, timestamp } = transaction;
     const { symbol, decimals } = token;
     const formattedAmount = Number(amount) / Math.pow(10, Number(decimals));
-    const formattedTimestamp = new Date(Number(timestamp) * 1000).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+    const formattedTimestamp = new Date(
+      Number(timestamp) * 1000
+    ).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
 
     let formattedTransaction = `${formattedTimestamp}\n`;
@@ -448,7 +474,6 @@ const formatTransactionDetails = (transactions) => {
     return formattedTransaction;
   });
 };
-  
 
 // Listen for '/transaction' command
 bot.onText(/\/transaction (.+)/, (msg, match) => {
@@ -459,31 +484,111 @@ bot.onText(/\/transaction (.+)/, (msg, match) => {
   fetchTransactionDetails(walletAddress)
     .then((transactions) => {
       const formattedTransactions = formatTransactionDetails(transactions);
-    if (formattedTransactions.length === 0) {
-      bot.sendMessage(chatId,'No transactions found.');
-      return;
-    }
+      if (formattedTransactions.length === 0) {
+        bot.sendMessage(chatId, "No transactions found.");
+        return;
+      }
 
-    const message = 'Recent Transactions:\n\n' + formattedTransactions.join('\n\n');
-    // Send the message through the Telegram bot
-    bot.sendMessage(chatId, message);
+      const message =
+        "Recent Transactions:\n\n" + formattedTransactions.join("\n\n");
+      // Send the message through the Telegram bot
+      bot.sendMessage(chatId, message);
     })
     .catch((error) => {
-      console.error('Error:', error);
-      bot.sendMessage(chatId, 'An error occurred while fetching transaction details.');
+      console.error("Error:", error);
+      bot.sendMessage(
+        chatId,
+        "An error occurred while fetching transaction details."
+      );
     });
 });
 
-// Listen for messages
-bot.on('message', (msg) => {
-  const chatId = msg.chat.id;
+// Create an object to store the chatId and wallet address pairs
+const userWallets = {};
 
-  // Check if the message is a command
-  if (msg.text && msg.text.startsWith('/')) {
-    // Process the command
-    // ...
-  } else {
-    // Send a reply for invalid commands
-    bot.sendMessage(chatId, 'This is not a valid command. Please enter a valid command.( /help for all available commands.)');
-  }
+// Function to save user data to Firebase Realtime Database
+const saveUserDataToFirebase = () => {
+  const firebaseDatabaseUrl =
+    "https://telegram-fraxlend-tracker-bot-default-rtdb.firebaseio.com/wallet.json";
+  fetch(firebaseDatabaseUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(userWallets),
+  })
+    .then(() => {
+      console.log("Data saved to Firebase Realtime Database.");
+    })
+    .catch((error) => {
+      console.error("Error saving data to Firebase Realtime Database:", error);
+    });
+};
+
+// ... Rest of the code remains the same ...
+
+// Listen for '/alert' command
+bot.onText(/\/alert/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(
+    chatId,
+    "Please provide your wallet address to set up the alert:"
+  );
+
+  // Listen for the next message (wallet address)
+  bot.once("message", (walletMsg) => {
+    const walletAddress = walletMsg.text.trim();
+    if (walletAddress) {
+      userWallets[chatId] = { walletAddress };
+      saveUserDataToFirebase(); // Save user data to Firebase Realtime Database
+      bot.sendMessage(chatId, `Alert set for wallet address: ${walletAddress}`);
+      // Start the cron job to send position details every 10 minutes
+      startAlertCron(chatId, walletAddress);
+    } else {
+      bot.sendMessage(chatId, "Invalid wallet address. Please try again.");
+    }
+  });
 });
+
+// Function to fetch saved data from the Firebase Realtime Database
+const fetchSavedDataFromFirebase = () => {
+  const firebaseDatabaseUrl = "https://telegram-fraxlend-tracker-bot-default-rtdb.firebaseio.com/wallet.json";
+  fetch(firebaseDatabaseUrl)
+    .then((response) => response.json())
+    .then((data) => {
+      if (data) {
+        // Fetch positions for each saved wallet address
+        Object.entries(data).forEach(([chatId, { walletAddress }]) => {
+          fetchAndSendPositions(chatId, walletAddress);
+        });
+      } else {
+        console.log('No data found in Firebase.');
+      }
+    })
+    .catch((error) => {
+      console.error('Error fetching data from Firebase:', error);
+    });
+};
+
+// Schedule the function to fetch and send positions every 1 minute
+cron.schedule('0 */12 * * *', () => {
+  console.log('Fetching and sending positions...');
+  fetchSavedDataFromFirebase();
+});
+
+// Listen for messages
+// bot.on("message", (msg) => {
+//   const chatId = msg.chat.id;
+
+//   // Check if the message is a command
+//   if (msg.text && msg.text.startsWith("/")) {
+//     // Process the command
+//     // ...
+//   } else {
+//     // Send a reply for invalid commands
+//     bot.sendMessage(
+//       chatId,
+//       "This is not a valid command. Please enter a valid command.( /help for all available commands.)"
+//     );
+//   }
+// });
